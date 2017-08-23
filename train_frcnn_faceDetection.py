@@ -51,6 +51,8 @@ elif options.parser == 'simple':
     from keras_frcnn.simple_parser import get_data
 elif options.parser == 'wider':
     from keras_frcnn.wider_parser import get_data
+elif options.parser == 'fddb':
+    from keras_frcnn.fddb_parser import get_data
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 

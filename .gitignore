@@ -94,3 +94,8 @@ ENV/
 
 .idea/
 /WIDERdevkit/
+/FDDBdevkit/
+FDDB-folds.tgz
+originalPics.tar.gz
+results_imgs_new
+results_imgs_old
