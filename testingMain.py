@@ -8,6 +8,8 @@ from xml.dom import minidom
 import os.path
 from os import listdir
 from os.path import isfile, join
+import json
+from pprint import pprint
 
 prediction_color = (255, 0, 0) # bgr
 gt_color = (0, 255, 0) # bgr
@@ -94,6 +96,14 @@ def parseXML(path):
     return annotationObj
 
 
+def parseJSON(path):
+    with open(path) as data_file:
+        data = json.load(data_file)
+
+    # pprint(data)
+    # pprint(data['filename'])
+    return data
+
 def drawPredBBoxes(img_rgb, bboxes, probsDict, ratio):
     for k in bboxes:
         # # print bboxes[k]
@@ -106,7 +116,13 @@ def drawPredBBoxes(img_rgb, bboxes, probsDict, ratio):
                           prediction_color, 2)
 
 
-def drawGT(img_rgb, annotationObj):
+def drawGTJSON(img_rgb, annotationObj):
+    bboxList = annotationObj['object']['bboxes']
+    for box in bboxList:
+        cv2.rectangle(img_rgb, (box['xmin'], box['ymin']), (box['xmax'], box['ymax']),
+                      gt_color, 3)
+
+def drawGTXML(img_rgb, annotationObj):
     objList = annotationObj['objList']
     for obj in objList:
         bndbox = obj['bndbox']
@@ -116,32 +132,89 @@ def drawGT(img_rgb, annotationObj):
                       gt_color, 3)
     pass
 
+
 def getListOfFiles(folderName):
     filesNameList = [f for f in listdir(folderName) if isfile(join(folderName, f))]
     return filesNameList
 
 
+def calculateIOU(boxA, boxB, ratio):
+    # determine the (x, y)-coordinates of the intersection rectangle
+    print 'boxA ', boxA
+    print 'boxB ', boxB
+    (real_x1, real_y1, real_x2, real_y2) = frcnnObj.get_real_coordinates(ratio, boxB[0], boxB[1], boxB[2], boxB[3])
+    xA = max(boxA['xmin'],real_x1)
+    yA = max(boxA['ymin'], real_y1)
+    xB = min(boxA['xmax'], real_x2)
+    yB = min(boxA['ymax'], real_y2)
+
+    # compute the area of intersection rectangle
+    interArea = (xB - xA + 1) * (yB - yA + 1)
+
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA['xmax'] - boxA['xmin'] + 1) * (boxA['ymax'] - boxA['ymin'] + 1)
+    boxBArea = (real_x2 - real_x1 + 1) * (real_y2 - real_y1 + 1)
+
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    # return the intersection over union value
+    return iou
+
+
+def getBestIOUwithGT(predictionBox, gtBoxList, ratio):
+    bestIndex = None
+    bestIOU = -1
+    mylist = []
+    for gtBox, idxx in zip(gtBoxList, range(len(gtBoxList))):
+        iou = calculateIOU(gtBox, predictionBox, ratio)
+        mylist.append(iou)
+    return mylist
+
+def evaluateBBoxes(predictionBoxesDict, bboxList, ratio):
+    predictionBoxesList = predictionBoxesDict['Face']
+    # bboxList = gtAnnotationObj['object']['bboxes']
+
+    # for predictionBox, idx in zip(predictionBoxesList, range(len(predictionBoxesList))):
+    for predictionBox in predictionBoxesList:
+        getBestIOUwithGT(predictionBox, bboxList, ratio)
+    pass
+
+
 def mainProcess():
-    annotationFolder = './WIDERdevkit/Annotations/'
-    imgsFolder = './WIDERdevkit/JPEGImages/'
+    annotationFolder = './FDDBdevkit/Annotations/'
+    imgsFolder = './FDDBdevkit/JPEGImages/'
     filesNameList = getListOfFiles(annotationFolder)
 
     idx = 0
-    while idx<100:
+    while idx<1:
         xmlFileName = filesNameList[idx]
         (fileBaseName, fileExt) = os.path.splitext(os.path.basename(xmlFileName))
         img_path = imgsFolder + fileBaseName + '.jpg'
         annotation_path = annotationFolder + xmlFileName
 
-        annotationObj = parseXML(annotation_path)
-        img = loadImg(img_path)
+        # annotationObj = parseXML(annotation_path)
+        annotationObj = parseJSON(annotation_path)
+        # exit()
+        # img = loadImg(img_path)
+        img = loadImg('./1.jpg')
         ratio, probs, bboxes = predictBBoxes(img)
         newBboxesDict, newProbsDict = NMS(probs, bboxes)
-        drawPredBBoxes(img, newBboxesDict, newProbsDict, ratio)
-        drawGT(img, annotationObj)
 
+        # evaluateBBoxes(newBboxesDict, annotationObj['object']['bboxes'], ratio)
+
+        drawPredBBoxes(img, newBboxesDict, newProbsDict, ratio)
+        # drawGTJSON(img, annotationObj)
+
+
+        # print type(newBboxesDict)
+        # print '\n\n'
+        # pprint(annotationObj)
         print 'writing ' + fileBaseName + '.jpg'
-        cv2.imwrite('./results_imgs_new/' + fileBaseName + '.jpg', img)
+        cv2.imwrite('./results_imgs/' + fileBaseName + '.jpg', img)
         idx +=1
 
 
@@ -172,7 +245,7 @@ if __name__ == "__main__":
     # ratio, probs, bboxes = predictBBoxes(img)
     newBboxesDict, newProbsDict = NMS(probs, bboxes)
     drawPredBBoxes(img, newBboxesDict, newProbsDict)
-    drawGT(img, annotationObj)
+    drawGTJSON(img, annotationObj)
     # mydict = {}
     # mydict['ratio'] = ratio
     # mydict['probs'] = probs

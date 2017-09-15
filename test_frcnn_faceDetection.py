@@ -12,7 +12,7 @@ from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import roi_helpers
 # import matplotlib.pyplot as plt
-
+# exit()
 sys.setrecursionlimit(40000)
 
 parser = OptionParser()
